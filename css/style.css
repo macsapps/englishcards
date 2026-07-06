@@ -1083,11 +1083,10 @@ body {
 }
 
 #detailPage {
-  position: relative;
-  min-height: 100vh;
   z-index: 1;
   overflow-y: auto;
   padding-bottom: 40px;
+  
 }
 
 .detail-toolbar {
