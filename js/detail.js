@@ -4,13 +4,6 @@ var detailCurrentCard = null;
 var detailMode = 'all';
 var detailReading = false;
 
-var modeOrder = ['all', 'zh', 'en'];
-var modeLabels = {
-  all: '全部',
-  zh: '中文',
-  en: '英文'
-};
-
 function pad2(n) {
   return n < 10 ? '0' + n : String(n);
 }
@@ -35,41 +28,21 @@ function getParam(name) {
 }
 
 function init() {
-  var backBtn = document.getElementById('btnBack');
-  if (backBtn) backBtn.onclick = function () { window.location.href = 'index.html'; };
-
-  var modeBtn = document.getElementById('btnMode');
-  if (modeBtn) modeBtn.onclick = toggleMode;
-
   var id = parseInt(getParam('id'));
   var mode = getParam('mode');
   detailMode = (mode === 'zh' || mode === 'en') ? mode : 'all';
-  updateModeLabel();
 
-  var token = localStorage.getItem('gitee_token');
-  var repoUrl = localStorage.getItem('gitee_repo_url');
-
-  if (!token || !repoUrl) {
-    document.getElementById('detailLoading').style.display = 'none';
-    showToast('未配置 Gitee，请先在主页配置');
-    return;
-  }
-
-  var parsed = parseRepoUrl(repoUrl);
+  var parsed = parseRepoUrl(GITEE_REPO_URL);
   if (!parsed) {
-    document.getElementById('detailLoading').style.display = 'none';
-    showToast('仓库地址格式无法解析');
+    showToast('仓库地址格式无法解析，请检查 js/gitee.js 中的 GITEE_REPO_URL');
     return;
   }
 
-  var client = new GiteeClient(token, parsed.owner, parsed.repo, 'master');
+  var client = new GiteeClient(GITEE_TOKEN, parsed.owner, parsed.repo, 'master');
   loadDetail(client, id);
 }
 
 async function loadDetail(client, id) {
-  var loadingEl = document.getElementById('detailLoading');
-  var emptyEl = document.getElementById('detailEmpty');
-
   try {
     var file = await client.getFile(DATA_FILE);
     var cards = [];
@@ -80,16 +53,13 @@ async function loadDetail(client, id) {
 
     var card = cards.find(function (c) { return c.id === id; });
     if (!card) {
-      loadingEl.style.display = 'none';
-      if (emptyEl) emptyEl.style.display = 'block';
+      showToast('未找到该卡片，请返回重试');
       return;
     }
 
-    loadingEl.style.display = 'none';
     renderDetail(card);
   } catch (err) {
     console.error('[详情] 加载失败:', err);
-    loadingEl.style.display = 'none';
     showToast('加载失败: ' + err.message);
   }
 }
@@ -97,11 +67,11 @@ async function loadDetail(client, id) {
 function renderDetail(card) {
   detailCurrentCard = card;
 
-  var bgEl = document.getElementById('detailBg');
+  var bgEl = document.getElementById('cardBg');
   if (card.images && card.images.length > 0) {
     bgEl.style.backgroundImage = 'url("' + card.images[0] + '")';
   } else {
-    bgEl.style.backgroundImage = 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%)';
+    // bgEl.style.backgroundImage = 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%)';
   }
 
   var parts = (card.title || '').split('|');
@@ -143,7 +113,7 @@ function renderDetail(card) {
   folderEl.onclick = async function () {
     if (detailReading || !detailCurrentCard) return;
     detailReading = true;
-    folderEl.classList.add('reading');
+    // folderEl.classList.add('reading');
     voice.cancel();
     try {
       await detailReadAll(detailCurrentCard.words);
@@ -184,30 +154,13 @@ function renderWords(card) {
       cardEl.innerHTML =
         '<span class="card_number">' + pad2(index + 1) + '</span>' +
         '<div class="word-content">' +
-          enHtml +
-          phHtml +
-          cnHtml +
+        enHtml +
+        phHtml +
+        cnHtml +
         '</div>';
       container.appendChild(cardEl);
     });
   }
-}
-
-function toggleMode() {
-  var idx = modeOrder.indexOf(detailMode);
-  detailMode = modeOrder[(idx + 1) % modeOrder.length];
-  updateModeLabel();
-  if (detailCurrentCard) renderWords(detailCurrentCard);
-
-  if (window.history && window.history.replaceState) {
-    var url = 'detail.html?id=' + detailCurrentCard.id + '&mode=' + detailMode;
-    window.history.replaceState(null, '', url);
-  }
-}
-
-function updateModeLabel() {
-  var btn = document.getElementById('btnMode');
-  if (btn) btn.textContent = '📖 ' + modeLabels[detailMode];
 }
 
 function detailHighlightCard(index) {
@@ -247,3 +200,4 @@ function showToast(msg) {
 }
 
 init();
+

@@ -1,4 +1,10 @@
-const GITEE_API = 'https://gitee.com/api/v5';
+var GITEE_API = 'https://gitee.com/api/v5';
+
+// ===== Gitee 配置（只需在此处修改，无需在前端输入） =====
+// 私人令牌：Gitee → 设置 → 私人令牌 中生成
+var GITEE_TOKEN = 'a207949f9c164a99357ce1e6a1913b1e';
+// 仓库地址：HTTPS 格式的 Gitee 仓库地址
+var GITEE_REPO_URL = 'https://gitee.com/hesir00/quick-tools-warehouse.git';
 
 function encodeBase64(str) {
   const bytes = new TextEncoder().encode(str);

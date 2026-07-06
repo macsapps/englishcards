@@ -11,18 +11,9 @@
 
 <body>
     <div id="detailPage">
-        <div class="detail-toolbar">
-            <button class="detail-tool-btn" id="btnBack" title="返回">← 返回</button>
-            <button class="detail-tool-btn" id="btnMode" title="切换展示模式">📖 全部</button>
-        </div>
-
-        <div id="detailLoading" class="detail-loading">加载中...</div>
-        <div id="detailEmpty" class="detail-empty" style="display:none;">
-            <p>📭 未找到该卡片，请返回重试</p>
-        </div>
-
         <div class="detail-bg" id="detailBg"></div>
         <div class="container1" id="detailContainer">
+            <div  id="cardBg"></div>
             <div class="cards" id="detailCards"></div>
             <div class="folder" id="detailFolder">
                 <div class="folder-images" id="detailFolderImages"></div>
@@ -40,9 +31,9 @@
 
     <div id="toast" class="toast"></div>
 
-    <script src="js/gitee.js"></script>
+    <script src="js/gitee.js?v=2"></script>
     <script src="js/voice.js"></script>
-    <script src="js/detail.js"></script>
+    <script src="js/detail.js?v=2"></script>
 </body>
 
 </html>

@@ -7,13 +7,16 @@ var toastTimer = null;
 var DATA_FILE = 'data/words.json';
 var IMAGE_DIR = 'images';
 
+var PAGE_SIZE = 18;
+var currentPage = 1;
+
 function init() {
   loadConfig();
   bindEvents();
   if (client) {
     loadCards();
   } else {
-    showModal('configModal');
+    showToast('配置错误：请检查 js/gitee.js 中的 GITEE_TOKEN 和 GITEE_REPO_URL');
   }
 }
 
@@ -27,23 +30,13 @@ function parseRepoUrl(url) {
 }
 
 function loadConfig() {
-  var token = localStorage.getItem('gitee_token');
-  var repoUrl = localStorage.getItem('gitee_repo_url');
-
-  if (token && repoUrl) {
-    document.getElementById('cfgToken').value = token;
-    document.getElementById('cfgRepoUrl').value = repoUrl;
-    var parsed = parseRepoUrl(repoUrl);
-    if (parsed) {
-      client = new GiteeClient(token, parsed.owner, parsed.repo, 'master');
-    }
+  var parsed = parseRepoUrl(GITEE_REPO_URL);
+  if (parsed) {
+    client = new GiteeClient(GITEE_TOKEN, parsed.owner, parsed.repo, 'master');
   }
 }
 
 function bindEvents() {
-  document.getElementById('btnConfig').onclick = function () { showModal('configModal'); };
-  document.getElementById('btnSaveConfig').onclick = saveConfig;
-  document.getElementById('btnTestConn').onclick = testConnection;
   document.getElementById('btnNew').onclick = function () { openEditModal(null); };
   document.getElementById('btnRefresh').onclick = loadCards;
   document.getElementById('btnSaveCard').onclick = saveCard;
@@ -68,91 +61,10 @@ function bindEvents() {
   document.getElementById('editImages').onchange = handleImageSelect;
 }
 
-function showCfgStatus(type, msg) {
-  var el = document.getElementById('cfgStatus');
-  el.className = 'cfg-status show ' + type;
-  el.textContent = msg;
-}
-
-function clearCfgStatus() {
-  var el = document.getElementById('cfgStatus');
-  el.className = 'cfg-status';
-  el.textContent = '';
-}
-
-async function testConnection() {
-  var token = document.getElementById('cfgToken').value.trim();
-  var repoUrl = document.getElementById('cfgRepoUrl').value.trim();
-
-  if (!token) {
-    showCfgStatus('error', '❌ 请输入私人令牌');
-    return;
-  }
-  if (!repoUrl) {
-    showCfgStatus('error', '❌ 请输入仓库地址');
-    return;
-  }
-
-  var parsed = parseRepoUrl(repoUrl);
-  if (!parsed) {
-    showCfgStatus('error', '❌ 仓库地址格式无法解析，请确认是 Gitee 仓库地址');
-    return;
-  }
-
-  showCfgStatus('loading', '🔌 正在验证连接...');
-
-  try {
-    var testClient = new GiteeClient(token, parsed.owner, parsed.repo, 'master');
-    var url = GITEE_API + '/repos/' + parsed.owner + '/' + parsed.repo + '?access_token=' + token;
-    var res = await fetch(url);
-
-    if (res.ok) {
-      var data = await res.json();
-      var branch = data.default_branch || 'master';
-      showCfgStatus('success', '✅ 连接成功！仓库: ' + data.full_name + ' | 默认分支: ' + branch);
-      return branch;
-    } else if (res.status === 401) {
-      showCfgStatus('error', '❌ 私人令牌无效或已过期');
-    } else if (res.status === 404) {
-      showCfgStatus('error', '❌ 仓库不存在或令牌无访问权限');
-    } else {
-      var errBody = await res.json().catch(function () { return {}; });
-      showCfgStatus('error', '❌ 连接失败: ' + (errBody.message || res.status));
-    }
-  } catch (err) {
-    showCfgStatus('error', '❌ 网络错误: ' + err.message);
-  }
-  return null;
-}
-
-function saveConfig() {
-  var token = document.getElementById('cfgToken').value.trim();
-  var repoUrl = document.getElementById('cfgRepoUrl').value.trim();
-
-  if (!token || !repoUrl) {
-    showToast('请填写完整配置信息');
-    return;
-  }
-
-  var parsed = parseRepoUrl(repoUrl);
-  if (!parsed) {
-    showToast('仓库地址格式无法解析');
-    return;
-  }
-
-  localStorage.setItem('gitee_token', token);
-  localStorage.setItem('gitee_repo_url', repoUrl);
-
-  client = new GiteeClient(token, parsed.owner, parsed.repo, 'master');
-  clearCfgStatus();
-  closeModal('configModal');
-  showToast('配置已保存');
-  loadCards();
-}
 
 async function loadCards() {
   if (!client) {
-    showModal('configModal');
+    showToast('配置错误：请检查 js/gitee.js 中的 GITEE_TOKEN 和 GITEE_REPO_URL');
     return;
   }
 
@@ -169,6 +81,7 @@ async function loadCards() {
     } else {
       cards = [];
     }
+    currentPage = 1;
     renderCards();
   } catch (err) {
     console.error('[加载] 失败:', err);
@@ -184,13 +97,21 @@ function renderCards() {
 
   if (cards.length === 0) {
     document.getElementById('emptyTip').style.display = 'block';
+    renderPagination();
     return;
   }
 
   document.getElementById('emptyTip').style.display = 'none';
 
+  var totalPages = Math.ceil(cards.length / PAGE_SIZE);
+  if (currentPage > totalPages) currentPage = totalPages;
+  if (currentPage < 1) currentPage = 1;
+
+  var start = (currentPage - 1) * PAGE_SIZE;
+  var end = Math.min(start + PAGE_SIZE, cards.length);
+
   var html = '';
-  for (var i = 0; i < cards.length; i++) {
+  for (var i = start; i < end; i++) {
     var card = cards[i];
     var imgHtml = '';
     if (card.images && card.images.length > 0) {
@@ -212,23 +133,60 @@ function renderCards() {
     html += '<div class="card-item">' +
       imgHtml +
       '<div class="card-body">' +
-        '<div class="card-title">' + escapeHtml(card.title) + '</div>' +
-        '<div class="card-meta">' +
-          '<span>NO. ' + card.id + '</span>' +
-          '<span>' + (card.words ? card.words.length : 0) + ' 个单词</span>' +
-        '</div>' +
-        wordsHtml +
-        '<div class="card-actions">' +
-          '<button class="btn btn-outline btn-sm" onclick="openDetail(' + card.id + ')">卡片</button>' +
-          '<button class="btn btn-outline btn-sm" onclick="openDetail(' + card.id + ', \'zh\')">中文展示</button>' +
-          '<button class="btn btn-outline btn-sm" onclick="openDetail(' + card.id + ', \'en\')">英文展示</button>' +
-          '<button class="btn btn-outline btn-sm" onclick="openEditModal(' + card.id + ')">编辑</button>' +
-          '<button class="btn btn-danger btn-sm" onclick="deleteCard(' + card.id + ')">删除</button>' +
-        '</div>' +
+      '<div class="card-title">' + escapeHtml(card.title) + '</div>' +
+      '<div class="card-meta">' +
+      '<span>NO. ' + card.id + '</span>' +
+      '<span>' + (card.words ? card.words.length : 0) + ' 个单词</span>' +
       '</div>' +
-    '</div>';
+      wordsHtml +
+      '<div class="card-actions">' +
+      '<button class="btn btn-outline btn-sm" onclick="openDetail(' + card.id + ')">卡片</button>' +
+      '<button class="btn btn-outline btn-sm" onclick="openDetail(' + card.id + ', \'zh\')">中文展示</button>' +
+      '<button class="btn btn-outline btn-sm" onclick="openDetail(' + card.id + ', \'en\')">英文展示</button>' +
+      '<button class="btn btn-outline btn-sm" onclick="openEditModal(' + card.id + ')">编辑</button>' +
+      '<button class="btn btn-danger btn-sm" onclick="deleteCard(' + card.id + ')">删除</button>' +
+      '</div>' +
+      '</div>' +
+      '</div>';
   }
   list.innerHTML = html;
+  renderPagination();
+}
+
+function renderPagination() {
+  var pager = document.getElementById('pagination');
+  if (!pager) return;
+
+  var totalPages = Math.ceil(cards.length / PAGE_SIZE);
+
+  if (totalPages <= 1) {
+    pager.innerHTML = '';
+    pager.style.display = 'none';
+    return;
+  }
+
+  pager.style.display = 'flex';
+
+  var html = '';
+  html += '<button class="page-btn' + (currentPage === 1 ? ' disabled' : '') + '" ' +
+    (currentPage === 1 ? 'disabled' : 'onclick="goToPage(' + (currentPage - 1) + ')"') + '>‹ 上一页</button>';
+
+  html += '<span class="page-info">第 ' + currentPage + ' / ' + totalPages + ' 页（共 ' + cards.length + ' 张）</span>';
+
+  html += '<button class="page-btn' + (currentPage === totalPages ? ' disabled' : '') + '" ' +
+    (currentPage === totalPages ? 'disabled' : 'onclick="goToPage(' + (currentPage + 1) + ')"') + '>下一页 ›</button>';
+
+  pager.innerHTML = html;
+}
+
+function goToPage(page) {
+  var totalPages = Math.ceil(cards.length / PAGE_SIZE);
+  if (page < 1 || page > totalPages) return;
+  currentPage = page;
+  renderCards();
+  var main = document.querySelector('.main');
+  if (main) main.scrollTop = 0;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function escapeHtml(str) {
