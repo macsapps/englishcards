@@ -52,10 +52,6 @@ function bindEvents() {
   document.getElementById('btnBatchClear').onclick = function () {
     document.getElementById('batchInput').value = '';
   };
-  document.getElementById('btnCloseDetail').onclick = closeDetail;
-  document.getElementById('detailModal').onclick = function (e) {
-    if (e.target === this) closeDetail();
-  };
 
   var closeBtns = document.querySelectorAll('[data-close]');
   for (var i = 0; i < closeBtns.length; i++) {
@@ -223,9 +219,9 @@ function renderCards() {
         '</div>' +
         wordsHtml +
         '<div class="card-actions">' +
-          '<button class="btn btn-outline btn-sm" onclick="showDetail(' + card.id + ')">卡片</button>' +
-          '<button class="btn btn-outline btn-sm" onclick="showDetail(' + card.id + ', \'zh\')">中文展示</button>' +
-          '<button class="btn btn-outline btn-sm" onclick="showDetail(' + card.id + ', \'en\')">英文展示</button>' +
+          '<button class="btn btn-outline btn-sm" onclick="openDetail(' + card.id + ')">卡片</button>' +
+          '<button class="btn btn-outline btn-sm" onclick="openDetail(' + card.id + ', \'zh\')">中文展示</button>' +
+          '<button class="btn btn-outline btn-sm" onclick="openDetail(' + card.id + ', \'en\')">英文展示</button>' +
           '<button class="btn btn-outline btn-sm" onclick="openEditModal(' + card.id + ')">编辑</button>' +
           '<button class="btn btn-danger btn-sm" onclick="deleteCard(' + card.id + ')">删除</button>' +
         '</div>' +
@@ -513,148 +509,9 @@ async function saveCard() {
   }
 }
 
-var detailReading = false;
-var detailCurrentCard = null;
-var detailMode = 'all';
-
-function pad2(n) {
-  return n < 10 ? '0' + n : String(n);
-}
-
-function showDetail(cardId, mode) {
-  var card = cards.find(function (c) { return c.id === cardId; });
-  if (!card) return;
-  detailCurrentCard = card;
-  detailMode = mode || 'all';
-
-  var bgEl = document.getElementById('detailBg');
-  if (card.images && card.images.length > 0) {
-    bgEl.style.backgroundImage = 'url("' + card.images[0] + '")';
-  } else {
-    bgEl.style.backgroundImage = 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%)';
-  }
-
-  var parts = (card.title || '').split('|');
-  var kickerText = (parts[0] || '').trim();
-  var titlePart = parts.length > 1 ? parts[1] : (parts[0] || '');
-  var infos = titlePart.split('的');
-  var nameText = infos[0] || titlePart;
-  var infoText = infos.length > 1 ? '的 ' + infos.slice(1).join('的') : '';
-
-  document.getElementById('detailKicker').textContent = kickerText || '速记.单词卡';
-  document.getElementById('detailName').textContent = nameText;
-  document.getElementById('detailInfo').textContent = infoText;
-  document.getElementById('detailGroupInfo').textContent = (card.words ? card.words.length : 0) + ' 个单词';
-
-  var container = document.getElementById('detailCards');
-  container.innerHTML = '';
-  container.classList.remove('mode-zh', 'mode-en');
-  if (detailMode === 'zh') container.classList.add('mode-zh');
-  else if (detailMode === 'en') container.classList.add('mode-en');
-
-  if (card.words && card.words.length > 0) {
-    card.words.forEach(function (word, index) {
-      var cardEl = document.createElement('div');
-      cardEl.className = 'card';
-      cardEl.dataset.index = index;
-      var enHtml, phHtml, cnHtml;
-      if (detailMode === 'zh') {
-        enHtml = '<p class="word_en word_blank word_blank1"></p>';
-        phHtml = '<p class="word_ph word_blank"></p>';
-        cnHtml = '<p class="word_cn">' + escapeHtml(word.zh) + '</p>';
-      } else if (detailMode === 'en') {
-        enHtml = '<p class="word_en">' + escapeHtml(word.en) + '</p>';
-        phHtml = '<p class="word_space"></p>';
-        cnHtml = '<p class="word_cn word_blank"></p>';
-      } else {
-        enHtml = '<p class="word_en">' + escapeHtml(word.en) + '</p>';
-        phHtml = '<p class="word_ph">' + escapeHtml(word.ph) + '</p>';
-        cnHtml = '<p class="word_cn">' + escapeHtml(word.zh) + '</p>';
-      }
-      cardEl.innerHTML =
-        '<span class="card_number">' + pad2(index + 1) + '</span>' +
-        '<div class="word-content">' +
-          enHtml +
-          phHtml +
-          cnHtml +
-        '</div>';
-      container.appendChild(cardEl);
-    });
-  }
-
-  var folderEl = document.getElementById('detailFolder');
-  var imagesEl = document.getElementById('detailFolderImages');
-  imagesEl.innerHTML = '';
-
-  if (card.images && card.images.length > 0) {
-    folderEl.classList.remove('no-images');
-    var maxImages = Math.min(card.images.length, 3);
-    for (var img = 0; img < maxImages; img++) {
-      var imgEl = document.createElement('img');
-      imgEl.src = card.images[img];
-      imgEl.alt = '图片' + (img + 1);
-      imagesEl.appendChild(imgEl);
-    }
-  } else {
-    folderEl.classList.add('no-images');
-  }
-
-  var containerEl = document.getElementById('detailContainer');
-  containerEl.classList.remove('over_content');
-
-  folderEl.classList.remove('reading');
-
-  folderEl.onclick = async function () {
-    if (detailReading || !detailCurrentCard) return;
-    detailReading = true;
-    folderEl.classList.add('reading');
-    voice.cancel();
-    try {
-      await detailReadAll(detailCurrentCard.words);
-    } finally {
-      detailReading = false;
-      folderEl.classList.remove('reading');
-      containerEl.classList.add('over_content');
-    }
-  };
-
-  document.getElementById('detailModal').style.display = 'block';
-}
-
-function detailHighlightCard(index) {
-  var actives = document.querySelectorAll('#detailCards .card.active');
-  for (var i = 0; i < actives.length; i++) {
-    actives[i].classList.remove('active');
-  }
-  if (index === null || index === undefined) return;
-  var el = document.querySelector('#detailCards .card[data-index="' + index + '"]');
-  if (el) el.classList.add('active');
-}
-
-function wait(ms) {
-  return new Promise(function (r) { setTimeout(r, ms); });
-}
-
-async function detailReadAll(words) {
-  for (var i = 0; i < words.length; i++) {
-    var word = words[i];
-    detailHighlightCard(i);
-    await voice.speak('en', word.en, 1, 3);
-    await wait(500);
-    await voice.speak('en', word.en, 0.8, 2);
-    await wait(500);
-  }
-  detailHighlightCard(null);
-}
-
-function closeDetail() {
-  voice.cancel();
-  detailReading = false;
-  var folderEl = document.getElementById('detailFolder');
-  if (folderEl) folderEl.classList.remove('reading');
-  var bgEl = document.getElementById('detailBg');
-  if (bgEl) bgEl.style.backgroundImage = '';
-  document.getElementById('detailModal').style.display = 'none';
+function openDetail(cardId, mode) {
+  var m = (mode === 'zh' || mode === 'en') ? mode : 'all';
+  window.location.href = 'detail.html?id=' + cardId + '&mode=' + m;
 }
 
 async function deleteCard(cardId) {
