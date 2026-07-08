@@ -143,6 +143,7 @@ function renderCards() {
       '<button class="btn btn-outline btn-sm" onclick="openDetail(' + card.id + ')">卡片</button>' +
       '<button class="btn btn-outline btn-sm" onclick="openDetail(' + card.id + ', \'zh\')">中文展示</button>' +
       '<button class="btn btn-outline btn-sm" onclick="openDetail(' + card.id + ', \'en\')">英文展示</button>' +
+      '<button class="btn btn-sm btn-record" onclick="openDetailAndRead(' + card.id + ')">🎤 录制</button>' +
       '<button class="btn btn-outline btn-sm" onclick="openEditModal(' + card.id + ')">编辑</button>' +
       '<button class="btn btn-danger btn-sm" onclick="deleteCard(' + card.id + ')">删除</button>' +
       '</div>' +
@@ -492,6 +493,12 @@ async function deleteCard(cardId) {
   } catch (err) {
     showToast('删除失败: ' + err.message);
   }
+}
+
+function openDetailAndRead(cardId) {
+  var card = cards.find(function (c) { return c.id === cardId; });
+  var title = card ? encodeURIComponent(card.title) : '';
+  window.location.href = 'detail.html?id=' + cardId + '&mode=all&autoplay=1&title=' + title;
 }
 
 function showToast(msg) {

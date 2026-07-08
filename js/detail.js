@@ -27,10 +27,17 @@ function getParam(name) {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-function init() {
+async function init() {
   var id = parseInt(getParam('id'));
   var mode = getParam('mode');
   detailMode = (mode === 'zh' || mode === 'en') ? mode : 'all';
+  var autoPlay = getParam('autoplay') === '1';
+  var cardTitle = getParam('title') || '';
+
+  if (autoPlay && cardTitle) {
+    var titleEl = document.getElementById('detailKicker');
+    if (titleEl) titleEl.textContent = decodeURIComponent(cardTitle);
+  }
 
   var parsed = parseRepoUrl(GITEE_REPO_URL);
   if (!parsed) {
@@ -39,7 +46,18 @@ function init() {
   }
 
   var client = new GiteeClient(GITEE_TOKEN, parsed.owner, parsed.repo, 'master');
-  loadDetail(client, id);
+
+  var ok = await loadDetail(client, id);
+  if (autoPlay && ok) {
+    // 等待页面渲染并确保语音引擎就绪后，触发与手动点击相同的朗读方案
+    await wait(600);
+    await voice.ensureReady();
+    var folderEl = document.getElementById('detailFolder');
+    if (folderEl && typeof folderEl.onclick === 'function') {
+      folderEl.onclick();
+
+    }
+  }
 }
 
 async function loadDetail(client, id) {
@@ -54,13 +72,15 @@ async function loadDetail(client, id) {
     var card = cards.find(function (c) { return c.id === id; });
     if (!card) {
       showToast('未找到该卡片，请返回重试');
-      return;
+      return false;
     }
 
     renderDetail(card);
+    return true;
   } catch (err) {
     console.error('[详情] 加载失败:', err);
     showToast('加载失败: ' + err.message);
+    return false;
   }
 }
 
@@ -110,19 +130,24 @@ function renderDetail(card) {
 
   folderEl.classList.remove('reading');
 
-  folderEl.onclick = async function () {
-    if (detailReading || !detailCurrentCard) return;
-    detailReading = true;
-    // folderEl.classList.add('reading');
-    voice.cancel();
-    try {
-      await detailReadAll(detailCurrentCard.words);
-    } finally {
-      detailReading = false;
-      folderEl.classList.remove('reading');
-      containerEl.classList.add('over_content');
-    }
+  folderEl.onclick = function () {
+    startReading(folderEl, containerEl);
   };
+}
+
+// 统一的朗读方案：autoplay 与手动点击 folder 共用
+async function startReading(folderEl, containerEl) {
+  if (detailReading || !detailCurrentCard) return;
+  detailReading = true;
+  // folderEl.classList.add('reading');
+  voice.cancel();
+  try {
+    await detailReadAll(detailCurrentCard.words);
+  } finally {
+    detailReading = false;
+    if (folderEl) folderEl.classList.remove('reading');
+    if (containerEl) containerEl.classList.add('over_content');
+  }
 }
 
 function renderWords(card) {
